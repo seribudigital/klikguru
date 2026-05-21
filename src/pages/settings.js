@@ -241,7 +241,10 @@ export function renderSettings(container) {
                             </div>
                           </td>
                           <td class="px-4 py-2.5 text-slate-400 font-medium">${s.tanggal_masuk || todayStr}</td>
-                          <td class="px-4 py-2.5 text-right">
+                          <td class="px-4 py-2.5 text-right flex justify-end gap-1.5">
+                            <button data-id="${s.id}" class="btn-edit-siswa px-2.5 py-1.5 bg-slate-900 hover:bg-slate-850 active:scale-95 border border-slate-805/80 text-[10px] font-bold text-sky-400 hover:text-sky-350 rounded-lg transition-all cursor-pointer">
+                              Edit Nama
+                            </button>
                             <button data-id="${s.id}" class="btn-mutasi-siswa px-2.5 py-1.5 bg-slate-900 hover:bg-slate-850 active:scale-95 border border-slate-805/80 text-[10px] font-bold text-emerald-400 hover:text-emerald-350 rounded-lg transition-all cursor-pointer">
                               Mutasi
                             </button>
@@ -574,21 +577,35 @@ export function renderSettings(container) {
     validateImportInputs();
   }
 
-  // 8. Klik Mutasi Siswa (Event Delegation)
+  // 8. Klik Mutasi / Edit Siswa (Event Delegation)
   const tableBody = document.getElementById("table-siswa-body");
   if (tableBody) {
     tableBody.addEventListener("click", (e) => {
-      const btn = e.target.closest(".btn-mutasi-siswa");
-      if (!btn) return;
-      
-      const siswaId = btn.getAttribute("data-id");
-      const siswaObj = siswa.find(s => s.id === siswaId);
-      if (!siswaObj) return;
-      
-      showMutasiModal(siswaObj, async (updatedData) => {
-        await updateSiswa(siswaId, updatedData);
-        renderSettings(container);
-      });
+      const btnEdit = e.target.closest(".btn-edit-siswa");
+      if (btnEdit) {
+        const siswaId = btnEdit.getAttribute("data-id");
+        const siswaObj = siswa.find(s => s.id === siswaId);
+        if (!siswaObj) return;
+        
+        showEditNamaModal(siswaObj, async (newNama) => {
+          await updateSiswa(siswaId, { nama: newNama });
+          renderSettings(container);
+        });
+        return;
+      }
+
+      const btnMutasi = e.target.closest(".btn-mutasi-siswa");
+      if (btnMutasi) {
+        const siswaId = btnMutasi.getAttribute("data-id");
+        const siswaObj = siswa.find(s => s.id === siswaId);
+        if (!siswaObj) return;
+        
+        showMutasiModal(siswaObj, async (updatedData) => {
+          await updateSiswa(siswaId, updatedData);
+          renderSettings(container);
+        });
+        return;
+      }
     });
   }
 }
@@ -793,6 +810,71 @@ function showMutasiModal(siswaObj, onSave) {
       alert("Gagal memperbarui status siswa.");
       btnSave.disabled = false;
       btnSave.textContent = "Simpan Status";
+    }
+  });
+}
+
+// --- HELPER UNTUK MODAL EDIT NAMA ---
+
+function showEditNamaModal(siswaObj, onSave) {
+  // Buat element modal overlay
+  const modalEl = document.createElement("div");
+  modalEl.className = "fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4";
+  
+  modalEl.innerHTML = `
+    <div class="glass w-full max-w-sm rounded-3xl p-6 space-y-5 shadow-2xl border border-slate-850 animate-fade-in text-left">
+      <div>
+        <h4 class="text-base font-bold text-white tracking-tight">Edit Nama Siswa</h4>
+        <p class="text-slate-400 text-[11px] mt-1">Ubah nama lengkap siswa.</p>
+      </div>
+
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider" for="modal-edit-nama-input">Nama Lengkap</label>
+          <input type="text" id="modal-edit-nama-input" 
+            class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500 transition-all text-sm font-semibold"
+            value="${siswaObj.nama}">
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button id="btn-modal-edit-cancel" class="flex-1 bg-slate-900 hover:bg-slate-850 active:scale-95 text-slate-350 font-semibold py-3 rounded-xl text-xs transition-all border border-slate-800/80 cursor-pointer">
+          Batal
+        </button>
+        <button id="btn-modal-edit-save" class="flex-1 bg-emerald-500 hover:bg-emerald-450 active:scale-95 text-slate-950 font-bold py-3 rounded-xl text-xs transition-all cursor-pointer">
+          Simpan Nama
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modalEl);
+  
+  const inputNama = modalEl.querySelector("#modal-edit-nama-input");
+  const btnCancel = modalEl.querySelector("#btn-modal-edit-cancel");
+  const btnSave = modalEl.querySelector("#btn-modal-edit-save");
+  
+  btnCancel.addEventListener("click", () => {
+    modalEl.remove();
+  });
+  
+  btnSave.addEventListener("click", async () => {
+    const newNama = inputNama.value.trim();
+    if (!newNama) {
+      alert("Nama tidak boleh kosong!");
+      return;
+    }
+    
+    btnSave.disabled = true;
+    btnSave.textContent = "Menyimpan...";
+    
+    try {
+      await onSave(newNama);
+      modalEl.remove();
+    } catch (err) {
+      alert("Gagal mengubah nama siswa.");
+      btnSave.disabled = false;
+      btnSave.textContent = "Simpan Nama";
     }
   });
 }

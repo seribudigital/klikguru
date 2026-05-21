@@ -10,7 +10,8 @@ let sessionState = {
   materi: "",
   catatanKelas: "",
   jamMulai: "",
-  jamSelesai: ""
+  jamSelesai: "",
+  tanggalWali: ""
 };
 
 export function renderJurnal(container) {
@@ -137,7 +138,8 @@ function renderSelectorView(container, sekolah, kelas) {
       sessionState.isWaliKelasAbsen = true;
       sessionState.selectedClass = "8A";
       sessionState.selectedMapel = "";
-      sessionState.attendance = {};
+      sessionState.tanggalWali = new Date().toISOString().split('T')[0];
+      initializeWaliAttendance(sessionState.tanggalWali);
       renderJurnal(container);
     });
   }
@@ -502,14 +504,33 @@ function resetSessionState() {
     materi: "",
     catatanKelas: "",
     jamMulai: "",
-    jamSelesai: ""
+    jamSelesai: "",
+    tanggalWali: ""
   };
+}
+
+function initializeWaliAttendance(dateStr) {
+  const docId = `${dateStr}_8A`;
+  const existingRecord = appState.absensiWali.find(a => a.id === docId);
+  sessionState.attendance = {};
+  if (existingRecord && existingRecord.ketidakhadiran) {
+    existingRecord.ketidakhadiran.forEach(kh => {
+      sessionState.attendance[kh.siswa_id] = kh.status;
+    });
+  }
 }
 
 function renderWaliKelasView(container, sekolah, siswa) {
   const activeYear = sekolah.tahun_ajaran_aktif;
-  const todayStr = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const ISOdateStr = new Date().toISOString().split('T')[0];
+  
+  if (!sessionState.tanggalWali) {
+    sessionState.tanggalWali = new Date().toISOString().split('T')[0];
+  }
+  
+  // Format selected date
+  const [year, month, day] = sessionState.tanggalWali.split('-');
+  const selectedDateObj = new Date(year, month - 1, day);
+  const formattedDateStr = selectedDateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   // Filter siswa aktif di kelas 8A untuk tahun ajaran aktif
   const classStudents = siswa.filter(s => 
@@ -533,11 +554,21 @@ function renderWaliKelasView(container, sekolah, siswa) {
         <div>
           <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Absensi Harian Wali Kelas</span>
           <h3 class="text-base font-bold text-white tracking-tight">Kelas 8A (Perwalian)</h3>
-          <p class="text-slate-400 text-xs">${todayStr} • TA ${activeYear}</p>
+          <p class="text-slate-400 text-xs">${formattedDateStr} • TA ${activeYear}</p>
         </div>
         <button id="btn-cancel-session" class="text-slate-400 hover:text-rose-400 text-xs font-semibold py-1.5 px-3 bg-slate-950/50 hover:bg-slate-950 border border-slate-800/80 rounded-lg transition-colors cursor-pointer">
           Batal
         </button>
+      </div>
+
+      <!-- DATE SELECTOR SECTION -->
+      <div class="glass rounded-2xl p-5 space-y-4">
+        <div class="space-y-2">
+          <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider" for="input-tanggal-wali">Pilih Tanggal Absensi</label>
+          <input type="date" id="input-tanggal-wali" 
+            class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500 transition-all text-sm font-semibold cursor-pointer"
+            value="${sessionState.tanggalWali}">
+        </div>
       </div>
 
       <!-- ABSENSI SECTION -->
@@ -612,7 +643,7 @@ function renderWaliKelasView(container, sekolah, siswa) {
             </div>
             <div class="flex justify-between text-xs text-slate-400">
               <span>Tanggal:</span>
-              <span class="font-medium text-white">${ISOdateStr}</span>
+              <span class="font-medium text-white">${sessionState.tanggalWali}</span>
             </div>
           </div>
 
@@ -633,6 +664,18 @@ function renderWaliKelasView(container, sekolah, siswa) {
   `;
 
   // --- HANDLER EVENT ---
+  
+  // 0. Listener untuk Perubahan Tanggal
+  const inputTanggalWali = document.getElementById("input-tanggal-wali");
+  if (inputTanggalWali) {
+    inputTanggalWali.addEventListener("change", (e) => {
+      const selectedDate = e.target.value;
+      if (!selectedDate) return;
+      sessionState.tanggalWali = selectedDate;
+      initializeWaliAttendance(selectedDate);
+      renderWaliKelasView(container, sekolah, siswa);
+    });
+  }
 
   // 1. Klik Batal
   document.getElementById("btn-cancel-session").addEventListener("click", () => {
@@ -724,10 +767,10 @@ function renderWaliKelasView(container, sekolah, siswa) {
       }
     });
 
-    const docId = `${ISOdateStr}_8A`;
+    const docId = `${sessionState.tanggalWali}_8A`;
 
     const data = {
-      tanggal: ISOdateStr,
+      tanggal: sessionState.tanggalWali,
       tahun_ajaran: activeYear,
       kelas_id: "8A",
       ketidakhadiran: ketidakhadiran
