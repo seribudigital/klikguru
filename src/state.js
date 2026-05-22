@@ -6,7 +6,8 @@ export const appState = {
   user: null,
   sekolah: {
     tahun_ajaran_aktif: "",
-    daftar_mapel: []
+    daftar_mapel: [],
+    daftar_tahun_ajaran: []
   },
   kelas: [], // array ID kelas, contoh: ["7A", "8A"]
   siswa: [], // array objek siswa lengkap
@@ -45,10 +46,14 @@ export async function loadMetadataSekolah() {
     
     if (docSnap.exists()) {
       appState.sekolah = docSnap.data();
+      if (!appState.sekolah.daftar_tahun_ajaran) {
+        appState.sekolah.daftar_tahun_ajaran = [appState.sekolah.tahun_ajaran_aktif || "2026_2027"];
+      }
     } else {
       const defaultData = {
         tahun_ajaran_aktif: "2026_2027",
-        daftar_mapel: ["Informatika", "Matematika", "IPA", "Seni Budaya"]
+        daftar_mapel: ["Informatika", "Matematika", "IPA", "Seni Budaya"],
+        daftar_tahun_ajaran: ["2026_2027"]
       };
       await setDoc(docRef, defaultData);
       appState.sekolah = defaultData;
@@ -221,6 +226,75 @@ export async function saveAbsensiWaliKelas(docId, data) {
     notifyStateChange();
   } catch (error) {
     console.error("Gagal menyimpan absensi wali kelas:", error);
+    throw error;
+  }
+}
+
+// Eksekusi Kenaikan Kelas Massal (Batch Write)
+export async function executeKenaikanKelasMassal(tahunAjaranBaru, mappings) {
+  try {
+    const batch = writeBatch(db);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const tahunLama = appState.sekolah.tahun_ajaran_aktif;
+
+    // Filter siswa yang aktif
+    const siswaAktif = appState.siswa.filter(s => s.status_aktif === true);
+
+    siswaAktif.forEach(siswaObj => {
+      const kelasLama = siswaObj.riwayat_kelas ? siswaObj.riwayat_kelas[tahunLama] : null;
+      if (!kelasLama) return;
+
+      const mapping = mappings[kelasLama];
+      if (!mapping) return;
+
+      const docRef = doc(db, "siswa", siswaObj.id);
+
+      if (mapping.lulus) {
+        // Siswa Lulus: status_sekolah = "Lulus", status_aktif = false, tanggal_keluar = todayStr
+        batch.update(docRef, {
+          status_sekolah: "Lulus",
+          status_aktif: false,
+          tanggal_keluar: todayStr
+        });
+      } else if (mapping.kelasBaru) {
+        // Siswa Naik Kelas: tambah di riwayat_kelas
+        const updatedRiwayat = { ...(siswaObj.riwayat_kelas || {}) };
+        updatedRiwayat[tahunAjaranBaru] = mapping.kelasBaru;
+        
+        batch.update(docRef, {
+          riwayat_kelas: updatedRiwayat
+        });
+      }
+    });
+
+    // Update metadata sekolah
+    const metadataDocRef = doc(db, "metadata", "sekolah");
+    const daftarTahunBaru = [...(appState.sekolah.daftar_tahun_ajaran || [])];
+    if (!daftarTahunBaru.includes(tahunAjaranBaru)) {
+      daftarTahunBaru.push(tahunAjaranBaru);
+      daftarTahunBaru.sort();
+    }
+    if (!daftarTahunBaru.includes(tahunLama)) {
+      daftarTahunBaru.push(tahunLama);
+      daftarTahunBaru.sort();
+    }
+
+    const updatedMetadata = {
+      ...appState.sekolah,
+      tahun_ajaran_aktif: tahunAjaranBaru,
+      daftar_tahun_ajaran: daftarTahunBaru
+    };
+
+    batch.set(metadataDocRef, updatedMetadata);
+
+    // Commit batch
+    await batch.commit();
+
+    // Reload data
+    await loadMetadataSekolah();
+    await loadSiswa();
+  } catch (error) {
+    console.error("Gagal mengeksekusi kenaikan kelas massal:", error);
     throw error;
   }
 }

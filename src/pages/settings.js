@@ -1,4 +1,4 @@
-import { appState, updateMetadataSekolah, addKelas, addSiswa, addSiswaMassal, updateSiswa } from "../state";
+import { appState, updateMetadataSekolah, addKelas, addSiswa, addSiswaMassal, updateSiswa, executeKenaikanKelasMassal } from "../state";
 
 export function renderSettings(container) {
   const { sekolah, kelas, siswa } = appState;
@@ -10,11 +10,17 @@ export function renderSettings(container) {
   // Kita simpan filter kelas aktif untuk melihat siswa di state UI sementara (memanfaatkan dataset)
   const defaultFilterClass = kelas.length > 0 ? kelas[0] : "";
   const activeFilterClass = container.dataset.activeFilterClass || defaultFilterClass;
+  const activeTab = container.dataset.activeSettingsTab || "aktif"; // "aktif" atau "alumni"
 
   // Filter seluruh siswa kelas terpilih untuk tahun ajaran aktif (baik aktif maupun non-aktif/mutasi)
   const filteredSiswa = siswa.filter(s => 
     s.riwayat_kelas && 
-    s.riwayat_kelas[sekolah.tahun_ajaran_aktif] === activeFilterClass
+    s.riwayat_kelas[sekolah.tahun_ajaran_aktif] === activeFilterClass &&
+    s.status_sekolah !== "Lulus"
+  ).sort((a, b) => a.nama.localeCompare(b.nama));
+
+  const alumniSiswa = siswa.filter(s => 
+    s.status_sekolah === "Lulus"
   ).sort((a, b) => a.nama.localeCompare(b.nama));
 
   container.innerHTML = `
@@ -116,6 +122,27 @@ export function renderSettings(container) {
         </div>
       </div>
 
+      <!-- CARD 4: Manajemen Akhir Tahun Ajaran -->
+      <div class="glass rounded-2xl p-5 space-y-4 border border-rose-500/10 shadow-lg shadow-rose-950/5 animate-fade-in">
+        <div class="border-b border-slate-800 pb-2 flex items-center justify-between">
+          <h3 class="text-xs font-bold text-slate-400 tracking-wider uppercase">Manajemen Akhir Tahun Ajaran</h3>
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">Zona Bahaya</span>
+        </div>
+
+        <div class="space-y-3">
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Gunakan fitur ini di akhir tahun ajaran untuk menaikkan kelas seluruh siswa secara massal dan mengarsipkan siswa tingkat akhir sebagai Alumni (Lulus). Proses ini tidak dapat dibatalkan.
+          </p>
+          <button id="btn-kenaikan-kelas-massal" 
+            class="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 hover:text-rose-350 font-semibold py-3 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            <span>Proses Kenaikan Kelas Massal</span>
+          </button>
+        </div>
+      </div>
+
       <!-- CARD 3: Manajemen Siswa -->
       <div class="glass rounded-2xl p-5 space-y-4">
         <div class="border-b border-slate-800 pb-2">
@@ -199,64 +226,112 @@ export function renderSettings(container) {
 
         <!-- Section List Siswa dengan Filter Kelas -->
         <div class="space-y-3 pt-2">
-          <div class="flex justify-between items-center">
-            <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider">Lihat Anggota Kelas</label>
-            <span class="text-[10px] font-semibold text-slate-500">Total Siswa Aktif: ${siswa.filter(s => s.status_aktif).length}</span>
+          <!-- Tab Selector -->
+          <div class="flex border-b border-slate-800/80 mb-2">
+            <button id="tab-siswa-aktif" class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 ${activeTab === 'aktif' ? 'border-emerald-500 text-emerald-400 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-350'} focus:outline-none transition-all cursor-pointer">
+              Siswa Aktif per Kelas
+            </button>
+            <button id="tab-siswa-alumni" class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 ${activeTab === 'alumni' ? 'border-emerald-500 text-emerald-400 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-350'} focus:outline-none transition-all cursor-pointer">
+              Data Alumni
+            </button>
           </div>
 
-          <div class="flex gap-2">
-            <select id="filter-siswa-kelas" 
-              class="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-emerald-500 transition-all text-xs font-semibold">
-              <option value="" ${!activeFilterClass ? "selected" : ""} disabled>-- Pilih Kelas Filter --</option>
-              ${kelas.map(k => `<option value="${k}" ${activeFilterClass === k ? "selected" : ""}>Kelas ${k}</option>`).join("")}
-            </select>
-          </div>
+          ${activeTab === 'aktif' ? `
+            <div class="flex justify-between items-center">
+              <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider">Lihat Anggota Kelas</label>
+              <span class="text-[10px] font-semibold text-slate-500">Total Siswa Aktif: ${siswa.filter(s => s.status_aktif).length}</span>
+            </div>
 
-          <!-- List Siswa Hasil Filter -->
-          <div class="bg-slate-950/65 rounded-xl border border-slate-900 max-h-60 overflow-y-auto">
-            <table class="w-full text-left text-xs text-slate-350">
-              <thead class="bg-slate-900/60 text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-900">
-                <tr>
-                  <th class="px-4 py-2.5">Nama & Status</th>
-                  <th class="px-4 py-2.5">Tanggal Masuk</th>
-                  <th class="px-4 py-2.5 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody id="table-siswa-body">
-                ${filteredSiswa.length > 0 
-                  ? filteredSiswa.map(s => {
-                      const statusBadge = s.status_sekolah === "Aktif" || !s.status_sekolah
-                        ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/10">Aktif</span>`
-                        : s.status_sekolah === "Pindah Sekolah"
-                          ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/10">Pindah</span>`
-                          : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/10">Lulus</span>`;
-                      
-                      return `
-                        <tr class="border-b border-slate-900/30 hover:bg-slate-900/10">
-                          <td class="px-4 py-2.5">
-                            <div class="font-medium text-slate-200">${s.nama}</div>
-                            <div class="mt-0.5 flex items-center gap-1.5 flex-wrap">
-                              ${statusBadge}
-                              ${s.tanggal_keluar ? `<span class="text-[9px] text-slate-500 font-medium">Keluar: ${s.tanggal_keluar}</span>` : ""}
-                            </div>
-                          </td>
-                          <td class="px-4 py-2.5 text-slate-400 font-medium">${s.tanggal_masuk || todayStr}</td>
-                          <td class="px-4 py-2.5 text-right flex justify-end gap-1.5">
-                            <button data-id="${s.id}" class="btn-edit-siswa px-2.5 py-1.5 bg-slate-900 hover:bg-slate-850 active:scale-95 border border-slate-805/80 text-[10px] font-bold text-sky-400 hover:text-sky-350 rounded-lg transition-all cursor-pointer">
-                              Edit Nama
-                            </button>
-                            <button data-id="${s.id}" class="btn-mutasi-siswa px-2.5 py-1.5 bg-slate-900 hover:bg-slate-850 active:scale-95 border border-slate-805/80 text-[10px] font-bold text-emerald-400 hover:text-emerald-350 rounded-lg transition-all cursor-pointer">
-                              Mutasi
-                            </button>
-                          </td>
-                        </tr>
-                      `;
-                    }).join("")
-                  : `<tr><td colspan="3" class="text-center py-6 text-slate-500">Tidak ada siswa terdaftar di kelas ini.</td></tr>`
-                }
-              </tbody>
-            </table>
-          </div>
+            <div class="flex gap-2">
+              <select id="filter-siswa-kelas" 
+                class="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-emerald-500 transition-all text-xs font-semibold">
+                <option value="" ${!activeFilterClass ? "selected" : ""} disabled>-- Pilih Kelas Filter --</option>
+                ${kelas.map(k => `<option value="${k}" ${activeFilterClass === k ? "selected" : ""}>Kelas ${k}</option>`).join("")}
+              </select>
+            </div>
+
+            <!-- List Siswa Hasil Filter -->
+            <div class="bg-slate-950/65 rounded-xl border border-slate-900 max-h-60 overflow-y-auto animate-fade-in">
+              <table class="w-full text-left text-xs text-slate-350">
+                <thead class="bg-slate-900/60 text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-900">
+                  <tr>
+                    <th class="px-4 py-2.5">Nama & Status</th>
+                    <th class="px-4 py-2.5">Tanggal Masuk</th>
+                    <th class="px-4 py-2.5 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="table-siswa-body">
+                  ${filteredSiswa.length > 0 
+                    ? filteredSiswa.map(s => {
+                        const statusBadge = s.status_sekolah === "Aktif" || !s.status_sekolah
+                          ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/10">Aktif</span>`
+                          : s.status_sekolah === "Pindah Sekolah"
+                            ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/10">Pindah</span>`
+                            : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/10">Lulus</span>`;
+                        
+                        return `
+                          <tr class="border-b border-slate-900/30 hover:bg-slate-900/10">
+                            <td class="px-4 py-2.5">
+                              <div class="font-medium text-slate-200">${s.nama}</div>
+                              <div class="mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                ${statusBadge}
+                                ${s.tanggal_keluar ? `<span class="text-[9px] text-slate-500 font-medium">Keluar: ${s.tanggal_keluar}</span>` : ""}
+                              </div>
+                            </td>
+                            <td class="px-4 py-2.5 text-slate-400 font-medium">${s.tanggal_masuk || todayStr}</td>
+                            <td class="px-4 py-2.5 text-right flex justify-end gap-1.5">
+                              <button data-id="${s.id}" class="btn-edit-siswa px-2.5 py-1.5 bg-slate-900 hover:bg-slate-850 active:scale-95 border border-slate-805/80 text-[10px] font-bold text-sky-400 hover:text-sky-350 rounded-lg transition-all cursor-pointer">
+                                Edit Nama
+                              </button>
+                              <button data-id="${s.id}" class="btn-mutasi-siswa px-2.5 py-1.5 bg-slate-900 hover:bg-slate-850 active:scale-95 border border-slate-805/80 text-[10px] font-bold text-emerald-400 hover:text-emerald-350 rounded-lg transition-all cursor-pointer">
+                                Mutasi
+                              </button>
+                            </td>
+                          </tr>
+                        `;
+                      }).join("")
+                    : `<tr><td colspan="3" class="text-center py-6 text-slate-500">Tidak ada siswa terdaftar di kelas ini.</td></tr>`
+                  }
+                </tbody>
+              </table>
+            </div>
+          ` : `
+            <div class="flex justify-between items-center">
+              <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider">Daftar Alumni Lulus</label>
+              <span class="text-[10px] font-semibold text-slate-500">Total Alumni: ${alumniSiswa.length}</span>
+            </div>
+
+            <!-- List Siswa Alumni -->
+            <div class="bg-slate-950/65 rounded-xl border border-slate-900 max-h-60 overflow-y-auto animate-fade-in">
+              <table class="w-full text-left text-xs text-slate-350">
+                <thead class="bg-slate-900/60 text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-900">
+                  <tr>
+                    <th class="px-4 py-2.5 font-semibold text-slate-300">Nama Lengkap</th>
+                    <th class="px-4 py-2.5 font-semibold text-slate-300">Kelas Terakhir</th>
+                    <th class="px-4 py-2.5 font-semibold text-slate-300">Tanggal Keluar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${alumniSiswa.length > 0 
+                    ? alumniSiswa.map(s => {
+                        const years = Object.keys(s.riwayat_kelas || {}).sort();
+                        const lastYear = years.pop();
+                        const lastClass = lastYear ? s.riwayat_kelas[lastYear] : "-";
+                        const yearLabel = lastYear ? ` (${lastYear.replace('_', '/')})` : '';
+                        return `
+                          <tr class="border-b border-slate-900/30 hover:bg-slate-900/10">
+                            <td class="px-4 py-2.5 font-medium text-slate-200">${s.nama}</td>
+                            <td class="px-4 py-2.5 text-slate-400 font-medium">${lastClass}${yearLabel}</td>
+                            <td class="px-4 py-2.5 text-slate-450 font-medium">${s.tanggal_keluar || "-"}</td>
+                          </tr>
+                        `;
+                      }).join("")
+                    : `<tr><td colspan="3" class="text-center py-6 text-slate-500">Belum ada alumni terdaftar.</td></tr>`
+                  }
+                </tbody>
+              </table>
+            </div>
+          `}
         </div>
 
       </div>
@@ -418,10 +493,12 @@ export function renderSettings(container) {
   });
 
   // 6. Filter Siswa Berdasarkan Kelas
-  filterSiswaKelas.addEventListener("change", (e) => {
-    container.dataset.activeFilterClass = e.target.value;
-    renderSettings(container);
-  });
+  if (filterSiswaKelas) {
+    filterSiswaKelas.addEventListener("change", (e) => {
+      container.dataset.activeFilterClass = e.target.value;
+      renderSettings(container);
+    });
+  }
 
   // --- HANDLER IMPOR MASSAL ---
 
@@ -606,6 +683,32 @@ export function renderSettings(container) {
         });
         return;
       }
+    });
+  }
+
+  // 9. Tab Switcher
+  const tabAktif = document.getElementById("tab-siswa-aktif");
+  const tabAlumni = document.getElementById("tab-siswa-alumni");
+  if (tabAktif && tabAlumni) {
+    tabAktif.addEventListener("click", () => {
+      container.dataset.activeSettingsTab = "aktif";
+      renderSettings(container);
+    });
+    tabAlumni.addEventListener("click", () => {
+      container.dataset.activeSettingsTab = "alumni";
+      renderSettings(container);
+    });
+  }
+
+  // 10. Kenaikan Kelas Massal Trigger
+  const btnKenaikanKelas = document.getElementById("btn-kenaikan-kelas-massal");
+  if (btnKenaikanKelas) {
+    btnKenaikanKelas.addEventListener("click", () => {
+      showKenaikanKelasModal(kelas, async (tahunBaru, mappings) => {
+        await executeKenaikanKelasMassal(tahunBaru, mappings);
+        container.dataset.activeSettingsTab = "aktif";
+        renderSettings(container);
+      });
     });
   }
 }
@@ -875,6 +978,191 @@ function showEditNamaModal(siswaObj, onSave) {
       alert("Gagal mengubah nama siswa.");
       btnSave.disabled = false;
       btnSave.textContent = "Simpan Nama";
+    }
+  });
+}
+
+// --- HELPER UNTUK MODAL KENAIKAN KELAS MASSAL ---
+function showKenaikanKelasModal(kelas, onSave) {
+  // Buat element modal overlay
+  const modalEl = document.createElement("div");
+  modalEl.className = "fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4";
+
+  const activeYear = appState.sekolah.tahun_ajaran_aktif || "";
+  let estimatedNextYear = "";
+  const match = activeYear.match(/^(\d{4})_(\d{4})$/);
+  if (match) {
+    const y1 = parseInt(match[1], 10);
+    const y2 = parseInt(match[2], 10);
+    estimatedNextYear = `${y1 + 1}_${y2 + 1}`;
+  } else {
+    estimatedNextYear = "2027_2028";
+  }
+
+  // Generate rows for each active class
+  const classRows = kelas.map(k => {
+    const classNumMatch = k.match(/^(\d+)(.*)$/);
+    let suggestedDest = "";
+    let suggestLulus = false;
+    if (classNumMatch) {
+      const num = parseInt(classNumMatch[1], 10);
+      const suffix = classNumMatch[2];
+      if (num >= 9) {
+        suggestLulus = true;
+      } else {
+        suggestedDest = `${num + 1}${suffix}`;
+      }
+    }
+
+    const options = kelas.map(destK => {
+      const selected = destK === suggestedDest ? "selected" : "";
+      return `<option value="${destK}" ${selected}>Kelas ${destK}</option>`;
+    }).join("");
+
+    return `
+      <tr class="border-b border-slate-900/30 class-mapping-row font-sans" data-class="${k}">
+        <td class="py-3 pr-4 font-semibold text-slate-200 text-sm">Kelas ${k}</td>
+        <td class="py-3 px-2">
+          <select class="select-dest-class bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 transition-all text-xs font-semibold w-36 ${suggestLulus ? 'opacity-50' : ''}" ${suggestLulus ? 'disabled' : ''}>
+            <option value="" disabled ${!suggestedDest ? 'selected' : ''}>-- Pilih Kelas --</option>
+            ${options}
+          </select>
+        </td>
+        <td class="py-3 pl-4 text-center">
+          <label class="inline-flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" class="cb-lulus-class rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500/30 h-4.5 w-4.5" ${suggestLulus ? 'checked' : ''}>
+            <span class="text-xs text-slate-400 font-semibold select-none">Lulus</span>
+          </label>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  modalEl.innerHTML = `
+    <div class="glass w-full max-w-lg rounded-3xl p-6 space-y-5 shadow-2xl border border-slate-850 animate-fade-in text-left flex flex-col max-h-[90vh]">
+      <div>
+        <h4 class="text-base font-bold text-white tracking-tight">Kenaikan Kelas Massal</h4>
+        <p class="text-slate-400 text-xs mt-1">Konfigurasi pemetaan kelas untuk transisi tahun ajaran baru.</p>
+      </div>
+
+      <div class="space-y-4 flex-1 overflow-y-auto pr-1">
+        <!-- Input Tahun Ajaran Baru -->
+        <div class="space-y-2">
+          <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider" for="modal-next-tahun">Tahun Ajaran Baru</label>
+          <input type="text" id="modal-next-tahun" 
+            class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500 transition-all text-sm font-semibold placeholder-slate-600 font-mono"
+            placeholder="Contoh: 2027_2028"
+            value="${estimatedNextYear}">
+        </div>
+
+        <!-- Mappings Table -->
+        <div class="space-y-2">
+          <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider">Pemetaan Kenaikan Kelas</label>
+          <div class="bg-slate-950/65 rounded-xl border border-slate-900 p-2 overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-350">
+              <thead>
+                <tr class="border-b border-slate-900 text-[9px] uppercase tracking-wider text-slate-500">
+                  <th class="py-2 pr-4">Kelas Asal</th>
+                  <th class="py-2 px-2">Kelas Baru (Tujuan)</th>
+                  <th class="py-2 pl-4 text-center">Set Lulus (Alumni)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${classRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button id="btn-modal-kk-cancel" class="flex-1 bg-slate-900 hover:bg-slate-850 active:scale-95 text-slate-350 font-semibold py-3 rounded-xl text-xs transition-all border border-slate-800/80 cursor-pointer">
+          Batal
+        </button>
+        <button id="btn-modal-kk-save" class="flex-1 bg-rose-500 hover:bg-rose-455 active:scale-95 text-slate-955 font-bold py-3 rounded-xl text-xs transition-all cursor-pointer">
+          Konfirmasi Kenaikan Kelas
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modalEl);
+
+  const btnCancel = modalEl.querySelector("#btn-modal-kk-cancel");
+  const btnSave = modalEl.querySelector("#btn-modal-kk-save");
+  const inputTahunBaru = modalEl.querySelector("#modal-next-tahun");
+
+  // Wire checkbox change handler to enable/disable select
+  const rows = modalEl.querySelectorAll(".class-mapping-row");
+  rows.forEach(row => {
+    const cb = row.querySelector(".cb-lulus-class");
+    const select = row.querySelector(".select-dest-class");
+    cb.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        select.disabled = true;
+        select.classList.add("opacity-50");
+      } else {
+        select.disabled = false;
+        select.classList.remove("opacity-50");
+      }
+    });
+  });
+
+  btnCancel.addEventListener("click", () => {
+    modalEl.remove();
+  });
+
+  btnSave.addEventListener("click", async () => {
+    const tahunBaru = inputTahunBaru.value.trim().replace(/\s+/g, "_");
+    if (!tahunBaru) {
+      alert("Harap masukkan tahun ajaran baru!");
+      return;
+    }
+    if (!tahunBaru.match(/^\d{4}_\d{4}$/)) {
+      alert("Format tahun ajaran baru salah! Gunakan format YYYY_YYYY (contoh: 2027_2028).");
+      return;
+    }
+
+    // Parse mappings
+    const mappings = {};
+    let hasError = false;
+
+    rows.forEach(row => {
+      const classLama = row.getAttribute("data-class");
+      const cb = row.querySelector(".cb-lulus-class");
+      const select = row.querySelector(".select-dest-class");
+
+      if (cb.checked) {
+        mappings[classLama] = { lulus: true };
+      } else {
+        const dest = select.value;
+        if (!dest) {
+          alert(`Harap tentukan kelas tujuan untuk Kelas ${classLama} atau centang Lulus!`);
+          hasError = true;
+          return;
+        }
+        mappings[classLama] = { kelasBaru: dest };
+      }
+    });
+
+    if (hasError) return;
+
+    if (!confirm(`APAKAH ANDA YAKIN?\nProses kenaikan kelas massal ke Tahun Ajaran ${tahunBaru} akan dijalankan. Semua siswa aktif akan dipindahkan atau diset sebagai Lulus.`)) {
+      return;
+    }
+
+    btnSave.disabled = true;
+    btnSave.textContent = "Memproses...";
+
+    try {
+      await onSave(tahunBaru, mappings);
+      modalEl.remove();
+      alert("Kenaikan kelas massal berhasil dijalankan!");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal memproses kenaikan kelas massal: " + err.message);
+      btnSave.disabled = false;
+      btnSave.textContent = "Konfirmasi Kenaikan Kelas";
     }
   });
 }
