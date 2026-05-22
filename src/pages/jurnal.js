@@ -165,7 +165,7 @@ function renderTeachingView(container, sekolah, siswa) {
   };
 
   container.innerHTML = `
-    <div class="space-y-6 animate-fade-in relative">
+    <div id="teaching-view-wrapper" class="space-y-6 animate-fade-in relative">
       
       <!-- Session Header Info -->
       <div class="flex justify-between items-center bg-slate-900 border border-slate-850 p-4 rounded-2xl">
@@ -351,40 +351,43 @@ function renderTeachingView(container, sekolah, siswa) {
 
   // 3. Toggle Status Absensi (Tap-to-Rotate)
   // Menggunakan event delegation di list container
-  container.addEventListener("click", (e) => {
-    const row = e.target.closest(".btn-toggle-absen");
-    if (!row) return;
+  const wrapper = document.getElementById("teaching-view-wrapper");
+  if (wrapper) {
+    wrapper.addEventListener("click", (e) => {
+      const row = e.target.closest(".btn-toggle-absen");
+      if (!row) return;
 
-    const id = row.getAttribute("data-siswa-id");
-    const current = sessionState.attendance[id] || "Hadir";
-    
-    // Rotasi status: Hadir -> Sakit -> Izin -> Alfa -> Hadir
-    const rotation = {
-      "Hadir": "Sakit",
-      "Sakit": "Izin",
-      "Izin": "Alfa",
-      "Alfa": "Hadir"
-    };
+      const id = row.getAttribute("data-siswa-id");
+      const current = sessionState.attendance[id] || "Hadir";
+      
+      // Rotasi status: Hadir -> Sakit -> Izin -> Alfa -> Hadir
+      const rotation = {
+        "Hadir": "Sakit",
+        "Sakit": "Izin",
+        "Izin": "Alfa",
+        "Alfa": "Hadir"
+      };
 
-    const next = rotation[current];
-    sessionState.attendance[id] = next;
+      const next = rotation[current];
+      sessionState.attendance[id] = next;
 
-    // Render ulang UI lembar mengajar agar tidak mengganggu fokus input form, 
-    // kita cukup update row spesifik tersebut agar UI terasa sangat fluid
-    const style = statusStyles[next];
-    
-    // Update background row
-    row.className = `btn-toggle-absen flex justify-between items-center p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none active:scale-[0.99] ${style.bg}`;
-    
-    // Update dot status
-    const dot = row.querySelector(".rounded-full");
-    dot.className = `w-2.5 h-2.5 rounded-full ${style.dot} transition-colors duration-200 animate-pulse`;
-    
-    // Update badge status text & style
-    const badge = row.querySelector("span[class*='text-[10px]']");
-    badge.textContent = next;
-    badge.className = `text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all duration-200 ${style.badge}`;
-  });
+      // Render ulang UI lembar mengajar agar tidak mengganggu fokus input form, 
+      // kita cukup update row spesifik tersebut agar UI terasa sangat fluid
+      const style = statusStyles[next];
+      
+      // Update background row
+      row.className = `btn-toggle-absen flex justify-between items-center p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none active:scale-[0.99] ${style.bg}`;
+      
+      // Update dot status
+      const dot = row.querySelector(".rounded-full");
+      dot.className = `w-2.5 h-2.5 rounded-full ${style.dot} transition-colors duration-200 animate-pulse`;
+      
+      // Update badge status text & style
+      const badge = row.querySelector("span[class*='text-[10px]']");
+      badge.textContent = next;
+      badge.className = `text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all duration-200 ${style.badge}`;
+    });
+  }
 
   // 4. Trigger Modal Simpan Sesi
   const btnTriggerSave = document.getElementById("btn-save-session-trigger");
@@ -547,7 +550,7 @@ function renderWaliKelasView(container, sekolah, siswa) {
   };
 
   container.innerHTML = `
-    <div class="space-y-6 animate-fade-in relative">
+    <div id="wali-kelas-view-wrapper" class="space-y-6 animate-fade-in relative">
       
       <!-- Session Header Info -->
       <div class="flex justify-between items-center bg-slate-900 border border-slate-850 p-4 rounded-2xl">
@@ -686,37 +689,40 @@ function renderWaliKelasView(container, sekolah, siswa) {
   });
 
   // 2. Toggle Status Absensi (Tap-to-Rotate)
-  container.addEventListener("click", (e) => {
-    const row = e.target.closest(".btn-toggle-absen");
-    if (!row) return;
+  const wrapperWali = document.getElementById("wali-kelas-view-wrapper");
+  if (wrapperWali) {
+    wrapperWali.addEventListener("click", (e) => {
+      const row = e.target.closest(".btn-toggle-absen");
+      if (!row) return;
 
-    const id = row.getAttribute("data-siswa-id");
-    const current = sessionState.attendance[id] || "Hadir";
-    
-    const rotation = {
-      "Hadir": "Sakit",
-      "Sakit": "Izin",
-      "Izin": "Alfa",
-      "Alfa": "Hadir"
-    };
+      const id = row.getAttribute("data-siswa-id");
+      const current = sessionState.attendance[id] || "Hadir";
+      
+      const rotation = {
+        "Hadir": "Sakit",
+        "Sakit": "Izin",
+        "Izin": "Alfa",
+        "Alfa": "Hadir"
+      };
 
-    const next = rotation[current];
-    sessionState.attendance[id] = next;
+      const next = rotation[current];
+      sessionState.attendance[id] = next;
 
-    const style = statusStyles[next];
-    
-    // Update background row
-    row.className = `btn-toggle-absen flex justify-between items-center p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none active:scale-[0.99] ${style.bg}`;
-    
-    // Update dot status
-    const dot = row.querySelector(".rounded-full");
-    dot.className = `w-2.5 h-2.5 rounded-full ${style.dot} transition-colors duration-200 animate-pulse`;
-    
-    // Update badge status text & style
-    const badge = row.querySelector("span[class*='text-[10px]']");
-    badge.textContent = next;
-    badge.className = `text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all duration-200 ${style.badge}`;
-  });
+      const style = statusStyles[next];
+      
+      // Update background row
+      row.className = `btn-toggle-absen flex justify-between items-center p-3 rounded-xl border transition-all duration-200 cursor-pointer select-none active:scale-[0.99] ${style.bg}`;
+      
+      // Update dot status
+      const dot = row.querySelector(".rounded-full");
+      dot.className = `w-2.5 h-2.5 rounded-full ${style.dot} transition-colors duration-200 animate-pulse`;
+      
+      // Update badge status text & style
+      const badge = row.querySelector("span[class*='text-[10px]']");
+      badge.textContent = next;
+      badge.className = `text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all duration-200 ${style.badge}`;
+    });
+  }
 
   // 3. Trigger Modal Simpan Sesi
   const btnTriggerSave = document.getElementById("btn-save-session-trigger");
