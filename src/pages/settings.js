@@ -23,6 +23,34 @@ export function renderSettings(container) {
     s.status_sekolah === "Lulus"
   ).sort((a, b) => a.nama.localeCompare(b.nama));
 
+  const activeAlumniLevel = container.dataset.activeAlumniLevel || "semua";
+  const filteredAlumni = alumniSiswa.filter(s => {
+    if (activeAlumniLevel === "semua") return true;
+
+    const years = Object.keys(s.riwayat_kelas || {}).sort();
+    const lastYear = years.pop();
+    const lastClass = lastYear ? s.riwayat_kelas[lastYear] : "";
+    if (!lastClass) return false;
+    const classStr = String(lastClass).trim();
+
+    // Deteksi angka di kelas (misalnya 7, 8, 9 vs 10, 11, 12)
+    const numMatch = classStr.match(/\d+/);
+    const numVal = numMatch ? parseInt(numMatch[0], 10) : null;
+
+    if (activeAlumniLevel === "mts") {
+      if (numVal !== null) {
+        return numVal === 7 || numVal === 8 || numVal === 9;
+      }
+      return classStr.includes("7") || classStr.includes("8") || classStr.includes("9");
+    } else if (activeAlumniLevel === "ma") {
+      if (numVal !== null) {
+        return numVal === 10 || numVal === 11 || numVal === 12;
+      }
+      return classStr.includes("10") || classStr.includes("11") || classStr.includes("12");
+    }
+    return true;
+  });
+
   container.innerHTML = `
     <div class="space-y-6 animate-fade-in pb-8">
       
@@ -296,9 +324,24 @@ export function renderSettings(container) {
               </table>
             </div>
           ` : `
-            <div class="flex justify-between items-center">
-              <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider">Daftar Alumni Lulus</label>
-              <span class="text-[10px] font-semibold text-slate-500">Total Alumni: ${alumniSiswa.length}</span>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+              <div>
+                <label class="block text-slate-400 text-[10px] font-bold uppercase tracking-wider">Daftar Alumni Lulus</label>
+                <span class="text-[10px] font-semibold text-slate-500">Total Alumni: ${filteredAlumni.length} siswa</span>
+              </div>
+
+              <!-- Filter Jenjang Alumni (Segmented Control) -->
+              <div class="flex bg-slate-950/80 border border-slate-900 rounded-xl p-1 gap-1 self-start sm:self-auto">
+                <button data-level="semua" class="btn-filter-alumni px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeAlumniLevel === 'semua' ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' : 'text-slate-400 hover:text-slate-200'}">
+                  Semua
+                </button>
+                <button data-level="mts" class="btn-filter-alumni px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeAlumniLevel === 'mts' ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' : 'text-slate-400 hover:text-slate-200'}">
+                  Alumni MTs
+                </button>
+                <button data-level="ma" class="btn-filter-alumni px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeAlumniLevel === 'ma' ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' : 'text-slate-400 hover:text-slate-200'}">
+                  Alumni MA
+                </button>
+              </div>
             </div>
 
             <!-- List Siswa Alumni -->
@@ -312,8 +355,8 @@ export function renderSettings(container) {
                   </tr>
                 </thead>
                 <tbody>
-                  ${alumniSiswa.length > 0 
-                    ? alumniSiswa.map(s => {
+                  ${filteredAlumni.length > 0 
+                    ? filteredAlumni.map(s => {
                         const years = Object.keys(s.riwayat_kelas || {}).sort();
                         const lastYear = years.pop();
                         const lastClass = lastYear ? s.riwayat_kelas[lastYear] : "-";
@@ -326,7 +369,7 @@ export function renderSettings(container) {
                           </tr>
                         `;
                       }).join("")
-                    : `<tr><td colspan="3" class="text-center py-6 text-slate-500">Belum ada alumni terdaftar.</td></tr>`
+                    : `<tr><td colspan="3" class="text-center py-6 text-slate-500">${alumniSiswa.length > 0 ? "Tidak ada alumni yang cocok dengan filter jenjang ini." : "Belum ada alumni terdaftar."}</td></tr>`
                   }
                 </tbody>
               </table>
@@ -711,6 +754,16 @@ export function renderSettings(container) {
       });
     });
   }
+
+  // 11. Filter Jenjang Alumni Click Handler
+  const btnsFilterAlumni = container.querySelectorAll(".btn-filter-alumni");
+  btnsFilterAlumni.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const level = e.currentTarget.getAttribute("data-level");
+      container.dataset.activeAlumniLevel = level;
+      renderSettings(container);
+    });
+  });
 }
 
 // --- HELPER UNTUK IMPOR MASSAL ---
