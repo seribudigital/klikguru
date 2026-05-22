@@ -65,6 +65,9 @@ function renderSelectorView(container, sekolah, kelas) {
               ${sekolah.daftar_mapel.map(m => `<option value="${m}" ${sessionState.selectedMapel === m ? "selected" : ""}>${m}</option>`).join("")}
             </select>
           </div>
+
+          <!-- Memori Pertemuan Terakhir Container -->
+          <div id="memory-card-container"></div>
         </div>
 
         <button id="btn-start-teaching" 
@@ -95,6 +98,31 @@ function renderSelectorView(container, sekolah, kelas) {
   const selectMapel = document.getElementById("select-mapel");
   const btnStart = document.getElementById("btn-start-teaching");
   const btnWaliKelas = document.getElementById("btn-wali-kelas-absen");
+
+  // Helper untuk update card memori pertemuan terakhir secara real-time
+  const updateMemoryCard = () => {
+    const kVal = selectKelas.value;
+    const mVal = selectMapel.value;
+    
+    // Simpan ke sessionState agar awet saat navigasi tab
+    sessionState.selectedClass = kVal;
+    sessionState.selectedMapel = mVal;
+    
+    const containerCard = document.getElementById("memory-card-container");
+    if (containerCard) {
+      if (kVal && mVal) {
+        containerCard.innerHTML = renderMemoryCard(kVal, mVal);
+      } else {
+        containerCard.innerHTML = "";
+      }
+    }
+  };
+
+  selectKelas.addEventListener("change", updateMemoryCard);
+  selectMapel.addEventListener("change", updateMemoryCard);
+
+  // Panggil saat inisialisasi awal (jika state sebelumnya sudah ada)
+  updateMemoryCard();
 
   btnStart.addEventListener("click", () => {
     const kVal = selectKelas.value;
@@ -178,6 +206,9 @@ function renderTeachingView(container, sekolah, siswa) {
           Batal
         </button>
       </div>
+
+      <!-- Memori Pertemuan Terakhir -->
+      ${renderMemoryCard(sessionState.selectedClass, sessionState.selectedMapel)}
 
       <!-- ABSENSI CEPAT SECTION -->
       <div class="glass rounded-2xl p-5 space-y-4">
@@ -796,4 +827,81 @@ function renderWaliKelasView(container, sekolah, siswa) {
       modal.classList.add("hidden");
     }
   });
+}
+
+// ==========================================
+// UTILITY & RENDERER: LOG MEMORI PERTEMUAN TERAKHIR
+// ==========================================
+
+function formatIndonesianDate(dateStr) {
+  if (!dateStr) return "";
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const [year, month, day] = parts;
+    const dateObj = new Date(year, month - 1, day);
+    if (isNaN(dateObj.getTime())) return dateStr;
+    return dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+function renderMemoryCard(kelasId, mapel) {
+  if (!kelasId || !mapel) return "";
+
+  // Cari 1 pertemuan terakhir di masa lalu
+  const lastMeeting = appState.jurnal
+    .filter(j => j.kelas_id === kelasId && j.mapel === mapel)
+    .sort((a, b) => {
+      if (a.tanggal !== b.tanggal) {
+        return b.tanggal.localeCompare(a.tanggal);
+      }
+      const timeA = a.jam_mulai || "";
+      const timeB = b.jam_mulai || "";
+      return timeB.localeCompare(timeA);
+    })[0];
+
+  if (!lastMeeting) {
+    return `
+      <div class="p-4 rounded-2xl border border-slate-800/60 bg-slate-900/30 text-center animate-fade-in my-2">
+        <h4 class="text-xs font-bold text-slate-400 tracking-wider uppercase mb-1.5">Memori Pertemuan Terakhir</h4>
+        <p class="text-slate-500 text-xs italic">Belum ada riwayat pertemuan sebelumnya untuk kelas dan mapel ini.</p>
+      </div>
+    `;
+  }
+
+  const formattedDate = formatIndonesianDate(lastMeeting.tanggal);
+  const timeStr = lastMeeting.jam_mulai && lastMeeting.jam_selesai
+    ? `${lastMeeting.jam_mulai} - ${lastMeeting.jam_selesai}`
+    : lastMeeting.jam_mulai || "";
+
+  return `
+    <div class="p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 space-y-3.5 animate-fade-in my-2">
+      <div class="flex items-center justify-between border-b border-emerald-500/10 pb-2.5">
+        <div class="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <h4 class="text-xs font-bold text-emerald-400 tracking-wider uppercase">Memori Pertemuan Terakhir</h4>
+        </div>
+        <span class="text-[9px] font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full">RIWAYAT</span>
+      </div>
+      
+      <div class="space-y-3 text-xs">
+        <div>
+          <span class="text-slate-500 block text-[9px] font-bold uppercase tracking-wider mb-0.5">Tanggal & Jam</span>
+          <span class="text-slate-200 font-semibold">${formattedDate}${timeStr ? `, ${timeStr}` : ''}</span>
+        </div>
+        <div>
+          <span class="text-slate-500 block text-[9px] font-bold uppercase tracking-wider mb-1">Materi Pembelajaran</span>
+          <p class="text-slate-350 leading-relaxed font-medium bg-slate-950/40 p-3 rounded-xl border border-slate-900">${lastMeeting.materi || '-'}</p>
+        </div>
+        <div>
+          <span class="text-slate-500 block text-[9px] font-bold uppercase tracking-wider mb-1">Catatan Kejadian Kelas / PR</span>
+          <p class="text-slate-350 leading-relaxed font-medium bg-slate-950/40 p-3 rounded-xl border border-slate-900">${lastMeeting.catatan_kelas || '<span class="text-slate-500 italic">Tidak ada catatan</span>'}</p>
+        </div>
+      </div>
+    </div>
+  `;
 }
